@@ -13,7 +13,6 @@ import com.simplemobiletools.clock.models.Timer
 import com.simplemobiletools.clock.models.TimerEvent
 import com.simplemobiletools.clock.models.TimerState
 import com.simplemobiletools.commons.adapters.MyRecyclerViewListAdapter
-import com.simplemobiletools.commons.dialogs.PermissionRequiredDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.views.MyRecyclerView
 import kotlinx.android.synthetic.main.item_timer.view.*
@@ -114,15 +113,21 @@ class TimerAdapter(
                 is TimerState.Running -> timer.state.tick.getFormattedDuration()
             }
 
+            timer_stop.applyColorFilter(textColor)
+            timer_stop.setOnClickListener {
+                resetTimer(timer)
+            }
+
             timer_reset.applyColorFilter(textColor)
             timer_reset.setOnClickListener {
                 resetTimer(timer)
+                playTimer(timer)
             }
 
             timer_play_pause.applyColorFilter(textColor)
             timer_play_pause.setOnClickListener {
-                (activity as SimpleActivity).handleNotificationPermission { granted ->
-                    if (granted) {
+                (activity as SimpleActivity).handleNotificationPermission {
+                    if (it) {
                         when (val state = timer.state) {
                             is TimerState.Idle -> EventBus.getDefault().post(TimerEvent.Start(timer.id!!, timer.seconds.secondsToMillis))
                             is TimerState.Paused -> EventBus.getDefault().post(TimerEvent.Start(timer.id!!, state.tick))
@@ -130,7 +135,7 @@ class TimerAdapter(
                             is TimerState.Finished -> EventBus.getDefault().post(TimerEvent.Start(timer.id!!, timer.seconds.secondsToMillis))
                         }
                     } else {
-                        PermissionRequiredDialog(activity, R.string.allow_notifications_reminders)
+                        activity.toast(R.string.no_post_notifications_permissions)
                     }
                 }
             }
@@ -138,6 +143,7 @@ class TimerAdapter(
             val state = timer.state
             val resetPossible = state is TimerState.Running || state is TimerState.Paused || state is TimerState.Finished
             timer_reset.beInvisibleIf(!resetPossible)
+            timer_stop.beInvisibleIf(!resetPossible)
             val drawableId = if (state is TimerState.Running) R.drawable.ic_pause_vector else R.drawable.ic_play_vector
             timer_play_pause.setImageDrawable(simpleActivity.resources.getColoredDrawableWithColor(drawableId, textColor))
         }
@@ -145,6 +151,11 @@ class TimerAdapter(
 
     private fun resetTimer(timer: Timer) {
         EventBus.getDefault().post(TimerEvent.Reset(timer.id!!))
+        simpleActivity.hideTimerNotification(timer.id!!)
+    }
+
+    private fun playTimer(timer: Timer) {
+        EventBus.getDefault().post(TimerEvent.Start(timer.id!!, timer.seconds.secondsToMillis))
         simpleActivity.hideTimerNotification(timer.id!!)
     }
 
